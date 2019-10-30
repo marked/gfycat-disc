@@ -63,7 +63,7 @@ if not WGET_LUA:
 # It will be added to the WARC files and reported to the tracker.
 VERSION = '20191026.00'
 USER_AGENT = 'ArchiveTeam'
-TRACKER_ID = 'yourshot-static'
+TRACKER_ID = 'yourshot-api'
 # TRACKER_HOST = 'tracker.archiveteam.org'  #prod-env
 TRACKER_HOST = 'tracker-test.ddns.net'  #dev-env
 
@@ -237,7 +237,7 @@ class WgetArgs(object):
         httpclient.AsyncHTTPClient.configure(None, defaults=dict(user_agent=USER_AGENT))
         http_client = httpclient.HTTPClient()
 
-        if item_type.startswith('ys_static_'):
+        if item_type.startswith('ys_'):
             wget_urls = []
             defer_assets = []
             photo_ids = []
@@ -253,7 +253,7 @@ class WgetArgs(object):
                 task_line = task_line.strip()
                 if len(task_line) == 0:
                     continue
-                if item_type == 'ys_static_json':
+                if item_type == 'ys_now_json':
                     print("Tv  " + task_line)  #debug
                     task_line_resp = http_client.fetch(task_line, method='GET')  # url to ys json api
                     api_resp = json.loads(task_line_resp.body.decode('utf-8', 'ignore'))
@@ -273,7 +273,7 @@ class WgetArgs(object):
                     with open('%(item_dir)s/%(warc_file_base)s.defer-urls.txt' % item, 'w') as fh:
                         fh.write("IDs: {}/{}\n".format(len(api_resp["results"]), api_resp["count"]))
                         fh.writelines("%s\n" % asset for asset in defer_assets)
-                elif item_type == 'ys_static_urls':
+                elif item_type == 'ys_static_urls' or item_type == 'ys_later_json':
                     print("T>  " + task_line)  #debug
                     wget_urls.append(task_line)
 
@@ -350,6 +350,25 @@ pipeline = Pipeline(
         id_function=stats_id_function,
     ),
     MoveFiles(),
+    LimitConcurrent(NumberConfigValue(min=1, max=20, default='20',
+        name='shared:rsync_threads', title='Rsync threads',
+        description='The maximum number of concurrent uploads.'),
+        UploadWithTracker(
+            'http://%s/%s' % (TRACKER_HOST, TRACKER_ID),
+            downloader=downloader,
+            version=VERSION,
+            files=ItemValue("files"),
+            rsync_target_source_path=ItemInterpolation('%(data_dir)s/'),
+            rsync_extra_args=[
+                '--recursive',
+                '--partial',
+                '--partial-dir', '.rsync-tmp',
+                '--min-size', '1',
+                '--no-compress',
+                '--compress-level', '0'
+            ]
+        ),
+    ),
     SendDoneToTracker(
         tracker_url='http://%s/%s' % (TRACKER_HOST, TRACKER_ID),
         stats=ItemValue('stats')

@@ -12,6 +12,7 @@ local code_counts = { }
 
 json_lib = require "json"
 host = "https://yourshot.nationalgeographic.com"
+local include_html = false
 
 ------------------------------------------------------------------------------------------------
 
@@ -19,8 +20,9 @@ wget.callbacks.get_urls = function(file, url, is_css, iri)
   local next_urls = { }
 
   -- sending an /api link will cause JSON recursion however
-  -- with 2019-10-01 pipeline no such links are sent as handled in python
+  --
   if string.match(url, host .. "/api") then  -- expect JSON
+    io.stdout:write("0 ")
     local resp_fh = assert(io.open(file))
     local resp_json = resp_fh:read('*all')
     resp_fh:close()
@@ -28,28 +30,36 @@ wget.callbacks.get_urls = function(file, url, is_css, iri)
     results = json_lib.decode(resp_json)["results"]
 
     for result_index, result_body in pairs(results) do
-      local frame_path = result_body["detail_url"]
-      io.stdout:write(result_index, frame_path)
-      io.stdout:flush()
-      table.insert(next_urls,
-        {
-          url = host .. frame_path,
-          link_expect_html = 1,
-          link_expect_css = 0
-        }
-      )
-
-      for img_res, img_path in pairs(result_body["thumbnails"]) do
-        print(img_res, img_path)
+      if include_html then
+        local frame_path = result_body["detail_url"]
+        io.stdout:write(result_index, frame_path)
+        io.stdout:flush()
         table.insert(next_urls,
           {
-            url = host .. img_path,
-            link_expect_html = 0,
+            url = host .. frame_path,
+            link_expect_html = 1,
             link_expect_css = 0
           }
         )
+      end
+
+      todo_url_count = todo_url_count + 1
+      io.stdout:write(result_index, " ")
+      io.stdout:flush()
+
+      for img_res, img_path in pairs(result_body["thumbnails"]) do
+        if img_res == "1024" then
+          table.insert(next_urls,
+            {
+              url = host .. img_path,
+              link_expect_html = 0,
+              link_expect_css = 0
+            }
+          )
+        end -- if target size
       end  -- for thumbnails
     end  -- for results
+    io.stdout:write("found\n")
   end -- if JSON
 
   return next_urls
