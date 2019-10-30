@@ -61,7 +61,7 @@ if not WGET_LUA:
 #
 # Update this each time you make a non-cosmetic change.
 # It will be added to the WARC files and reported to the tracker.
-VERSION = '20191029.01'
+VERSION = '20191030.01'
 USER_AGENT = 'ArchiveTeam'
 TRACKER_ID = 'yourshot-static'
 # TRACKER_HOST = 'tracker.archiveteam.org'  #prod-env
@@ -245,7 +245,7 @@ class WgetArgs(object):
 
             item_type_dir = item_type.split('_', 3)[2]
             job_file_url = ('https://raw.githubusercontent.com/marked/yourshot-static-items/master/'
-                            + item_value)  #prod-env | #dev-env
+                            + item_type_dir + '/' + item_value)  #prod-env | #dev-env
 
             print("Job location: " + job_file_url)  #debug
             job_file_resp = http_client.fetch(job_file_url, method='GET')  # url to github
