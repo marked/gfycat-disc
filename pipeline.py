@@ -31,6 +31,9 @@ import json
 if StrictVersion(seesaw.__version__) < StrictVersion('0.10.3'):
     raise Exception('This pipeline needs seesaw version 0.10.3 or higher.')
 
+anim_file = open("animals.txt", "r")
+animals = [ line.rstrip() for line in anim_file.readlines()]
+anim_file.close()
 
 ###########################################################################
 # Find a useful Wget+Lua executable.
@@ -61,9 +64,9 @@ if not WGET_LUA:
 #
 # Update this each time you make a non-cosmetic change.
 # It will be added to the WARC files and reported to the tracker.
-VERSION = '20191030.01'
+VERSION = '20191105.00'
 USER_AGENT = 'ArchiveTeam'
-TRACKER_ID = 'yourshot-static'
+TRACKER_ID = 'gfycat-disc'
 # TRACKER_HOST = 'tracker.archiveteam.org'  #prod-env
 TRACKER_HOST = 'tracker-test.ddns.net'  #dev-env
 
@@ -181,7 +184,7 @@ def get_hash(filename):
 
 CWD = os.getcwd()
 PIPELINE_SHA1 = get_hash(os.path.join(CWD, 'pipeline.py'))
-LUA_SHA1 = get_hash(os.path.join(CWD, 'yourshot-static.lua'))
+LUA_SHA1 = get_hash(os.path.join(CWD, 'gfycat-disc.lua'))
 
 
 def stats_id_function(item):
@@ -202,7 +205,7 @@ class WgetArgs(object):
             '-U', USER_AGENT,
             '-nv',
             '--no-cookies',
-            '--lua-script', 'yourshot-static.lua',
+            '--lua-script', 'gfycat-disc.lua',
             '-o', ItemInterpolation('%(item_dir)s/wget.log'),
             '--no-check-certificate',
             '--output-document', ItemInterpolation('%(item_dir)s/wget.tmp'),
@@ -219,8 +222,8 @@ class WgetArgs(object):
             '--waitretry', '30',
             '--warc-file', ItemInterpolation('%(item_dir)s/%(warc_file_base)s'),
             '--warc-header', 'operator: Archive Team',
-            '--warc-header', 'yourshot-static-dld-script-version: ' + VERSION,
-            '--warc-header', ItemInterpolation('yourshot-static-item: %(item_name)s'),
+            #'--warc-header', 'yourshot-static-dld-script-version: ' + VERSION,
+            #'--warc-header', ItemInterpolation('yourshot-static-item: %(item_name)s'),
             # --warc-header yourshot-photo-id: ... filled in below
             # '--header', 'Accept-Encoding: gzip',
             # '--compression', 'gzip'
@@ -234,48 +237,14 @@ class WgetArgs(object):
         item['item_type'] = item_type
         item['item_value'] = item_value
 
-        httpclient.AsyncHTTPClient.configure(None, defaults=dict(user_agent=USER_AGENT))
-        http_client = httpclient.HTTPClient()
-
-        if item_type.startswith('ys_'):
+        if item_type.startswith('AdjAdj'):
             wget_urls = []
             defer_assets = []
             photo_ids = []
             item_version = None
 
-            item_type_dir = item_type.split('_', 3)[2]
-            job_file_url = ('https://raw.githubusercontent.com/marked/yourshot-static-items/master/'
-                            + item_type_dir + '/' + item_value)  #prod-env | #dev-env
-
-            print("Job location: " + job_file_url)  #debug
-            job_file_resp = http_client.fetch(job_file_url, method='GET')  # url to github
-            for task_line in job_file_resp.body.decode('utf-8', 'ignore').splitlines():
-                task_line = task_line.strip()
-                if len(task_line) == 0:
-                    continue
-                if item_type == 'ys_now_json':
-                    print("Tv  " + task_line)  #debug
-                    task_line_resp = http_client.fetch(task_line, method='GET')  # url to ys json api
-                    api_resp = json.loads(task_line_resp.body.decode('utf-8', 'ignore'))
-                    for photo_obj in api_resp["results"]:
-                        wget_args.extend(['--warc-header',
-                                          'yourshot-photo-id: {}'.format(photo_obj["photo_id"])])
-                        for photo_size in photo_obj["thumbnails"]:
-                            wget_urls.append("https://yourshot.nationalgeographic.com"
-                                             + photo_obj["thumbnails"][photo_size])
-                        defer_assets.append(photo_obj["detail_url"])
-                        defer_assets.append(photo_obj["owner"]["profile_url"])
-                        defer_assets.append(photo_obj["owner"]["avatar_url"])
-
-                    print("\nIDs: {}/{}".format(len(api_resp["results"]), api_resp["count"]))  #debug
-                    item_version = api_resp['count']
-
-                    with open('%(item_dir)s/%(warc_file_base)s.defer-urls.txt' % item, 'w') as fh:
-                        fh.write("IDs: {}/{}\n".format(len(api_resp["results"]), api_resp["count"]))
-                        fh.writelines("%s\n" % asset for asset in defer_assets)
-                elif item_type == 'ys_static_urls' or item_type == 'ys_later_json':
-                    print("T>  " + task_line)  #debug
-                    wget_urls.append(task_line)
+            for animal in animals:
+              wget_urls.append("https://api.gfycat.com/v1/gfycats/"+item_value+animal.capitalize())
 
             if item_version is None:
                 item_version = len(wget_urls)
@@ -290,7 +259,6 @@ class WgetArgs(object):
 
             # print("\nD^      ", end="")  #debug
             # print("\nD^      ".join(defer_assets))  #debug
-            http_client.close()
         else:
             raise Exception('Unknown item')
 
@@ -312,15 +280,10 @@ class WgetArgs(object):
 project = Project(
     title='yourshot-static',
     project_html='''
-<img class="project-logo" alt="logo" src="https://www.archiveteam.org/images/7/7a/Yourshot-logo.png" height="50px"/>
-<h2>https://yourshot.nationalgeographic.com
- <span class="links">
-  <a href="https://yourshot.nationalgeographic.com/">Website</a>
-  &middot;
-  <a href="http://tracker.archiveteam.org/yourshot-static/">Leaderboard</a>
- </span>
-</h2>
-    '''
+        <img class="project-logo" alt="Project logo" src="https://www.archiveteam.org/images/2/22/Radio24syv.png" height="50px" title=""/>
+        <h2>Radio24syv &middot; <class="links"><a href="https://www.24syv.dk/">Website</a> &middot; <a href="http://%s/%s/">Leaderboard</a></span></h2>
+        <p>Archiving audio from radio24syv archive</p>
+    ''' % (TRACKER_HOST, TRACKER_ID)
 )
 
 pipeline = Pipeline(
